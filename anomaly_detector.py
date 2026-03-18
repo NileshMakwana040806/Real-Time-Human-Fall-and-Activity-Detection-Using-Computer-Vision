@@ -1,6 +1,8 @@
 # anomaly_detector.py
 
-# This function takes body keypoints and predicts activity
+# Store previous hip positions for each person
+previous_positions = {}
+
 def detect_activity(points, track_id):
     """
     points: keypoints of a single person (17 body points)
@@ -12,7 +14,6 @@ def detect_activity(points, track_id):
 
     try:
         # Keypoints index reference (YOLO Pose)
-        # 0 = nose
         # 11 = left hip
         # 12 = right hip
         # 13 = left knee
@@ -29,6 +30,7 @@ def detect_activity(points, track_id):
         right_ankle = points[16]
 
         # Average positions (more stable)
+        hip_x = (left_hip[0] + right_hip[0]) / 2
         hip_y = (left_hip[1] + right_hip[1]) / 2
         knee_y = (left_knee[1] + right_knee[1]) / 2
         ankle_y = (left_ankle[1] + right_ankle[1]) / 2
@@ -43,13 +45,24 @@ def detect_activity(points, track_id):
         if abs(hip_y - knee_y) < 40:
             return "SITTING"
 
-        # 3. STANDING detection
+        # 3. WALKING detection (movement in X direction)
+        if track_id in previous_positions:
+            prev_x = previous_positions[track_id]
+
+            # If hip moves significantly → walking
+            if abs(hip_x - prev_x) > 10:
+                previous_positions[track_id] = hip_x
+                return "WALKING"
+
+        # Update position
+        previous_positions[track_id] = hip_x
+
+        # 4. STANDING detection
         if hip_y < knee_y < ankle_y:
             return "STANDING"
 
-        # 4. Default
+        # 5. Default
         return "UNKNOWN"
 
     except:
-        # If keypoints missing or error occurs
         return "UNKNOWN"
